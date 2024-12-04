@@ -3,6 +3,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
@@ -23,6 +24,7 @@ public class ProfileScreen extends JFrame {
             dbManager = new DatabaseManager();
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(null, "Database Connection Failed", "Error", JOptionPane.ERROR_MESSAGE);
+            dispose();
             return;
         }
 
@@ -38,7 +40,7 @@ public class ProfileScreen extends JFrame {
 
         // 상단 중앙: 사용자 ID 표시
         JLabel userIdLabel = new JLabel("User ID: " + otherUserId);
-        userIdLabel.setBounds(150, 20, 200, 25);
+        userIdLabel.setBounds(200, 20, 200, 25);
         panel.add(userIdLabel);
 
         // 팔로우/언팔로우 버튼 (다른 사용자일 경우에만 표시)
@@ -46,7 +48,8 @@ public class ProfileScreen extends JFrame {
             try {
                 isFollowing = dbManager.getFolloweeById(currentUser.getId()).contains(otherUserId);
             } catch (SQLException e) {
-                JOptionPane.showMessageDialog(null, "Database Error", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(null, "Failed to fetch following info", "Error", JOptionPane.ERROR_MESSAGE);
+                isFollowing = false; // 기본값 설정
             }
 
             followButton = new JButton(isFollowing ? "Unfollow" : "Follow");
@@ -61,7 +64,6 @@ public class ProfileScreen extends JFrame {
                             if (dbManager.unfollowUser(currentUser.getId(), otherUserId)) {
                                 followButton.setText("Follow");
                                 isFollowing = false;
-                                System.out.println("Unfollowed user: " + otherUserId);
                             } else {
                                 JOptionPane.showMessageDialog(null, "Failed to unfollow user", "Error", JOptionPane.ERROR_MESSAGE);
                             }
@@ -69,7 +71,6 @@ public class ProfileScreen extends JFrame {
                             if (dbManager.insertFollow(currentUser.getId(), otherUserId)) {
                                 followButton.setText("Unfollow");
                                 isFollowing = true;
-                                System.out.println("Followed user: " + otherUserId);
                             } else {
                                 JOptionPane.showMessageDialog(null, "Failed to follow user", "Error", JOptionPane.ERROR_MESSAGE);
                             }
@@ -79,7 +80,6 @@ public class ProfileScreen extends JFrame {
                     }
                 }
             });
-
         }
 
         // 팔로잉 수 및 팔로워 수 표시
@@ -88,23 +88,25 @@ public class ProfileScreen extends JFrame {
             ArrayList<String> followers = dbManager.getFollowerIdsByUserId(otherUserId);
 
             followingLabel = new JLabel("Following: " + followees.size());
-            followingLabel.setBounds(150, 50, 100, 25);
+            followingLabel.setBounds(150, 70, 100, 25);
             panel.add(followingLabel);
 
             followerLabel = new JLabel("Followers: " + followers.size());
-            followerLabel.setBounds(270, 50, 100, 25);
+            followerLabel.setBounds(270, 70, 100, 25);
             panel.add(followerLabel);
 
-            followingLabel.addMouseListener(new java.awt.event.MouseAdapter() {
-                public void mouseClicked(java.awt.event.MouseEvent evt) {
+            followingLabel.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent evt) {
                     dispose();
                     FollowingScreen followingScreen = new FollowingScreen(currentUser, otherUserId);
                     followingScreen.setVisible(true);
                 }
             });
 
-            followerLabel.addMouseListener(new java.awt.event.MouseAdapter() {
-                public void mouseClicked(java.awt.event.MouseEvent evt) {
+            followerLabel.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent evt) {
                     dispose();
                     FollowerScreen followerScreen = new FollowerScreen(currentUser, otherUserId);
                     followerScreen.setVisible(true);
@@ -116,9 +118,11 @@ public class ProfileScreen extends JFrame {
 
         // 게시글 목록 표시
         postArea = new JTextArea();
-        postArea.setBounds(50, 100, 500, 300);
         postArea.setEditable(false);
-        panel.add(postArea);
+
+        JScrollPane scrollPane = new JScrollPane(postArea);
+        scrollPane.setBounds(50, 100, 500, 300);
+        panel.add(scrollPane);
 
         loadUserPosts();
 
@@ -141,11 +145,6 @@ public class ProfileScreen extends JFrame {
     private void loadUserPosts() {
         try {
             ArrayList<Article> articles = dbManager.getUserArticlesWithDetails(otherUserId);
-            if (articles.isEmpty()) {
-                System.out.println("No articles found for user ID: " + otherUserId);
-            } else {
-                System.out.println("Loaded " + articles.size() + " articles for user ID: " + otherUserId);
-            }
             StringBuilder posts = new StringBuilder();
             for (Article article : articles) {
                 posts.append(article.getAuthorName()).append(" : ").append(article.getContent()).append("\n\n");
@@ -156,4 +155,18 @@ public class ProfileScreen extends JFrame {
         }
     }
 
+    @Override
+    public void dispose() {
+        if (followingLabel != null) {
+            for (MouseListener listener : followingLabel.getMouseListeners()) {
+                followingLabel.removeMouseListener(listener);
+            }
+        }
+        if (followerLabel != null) {
+            for (MouseListener listener : followerLabel.getMouseListeners()) {
+                followerLabel.removeMouseListener(listener);
+            }
+        }
+        super.dispose();
+    }
 }
